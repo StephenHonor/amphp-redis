@@ -63,6 +63,11 @@ final class RemoteExecutor implements QueryExecutor
         });
     }
 
+    public function __destruct()
+    {
+        print 'destruct';
+    }
+
     private function enqueue(RespSocket $resp, string... $args): Promise
     {
         return call(function () use ($resp, $args) {
@@ -87,23 +92,28 @@ final class RemoteExecutor implements QueryExecutor
             return $this->connect;
         }
 
-        return $this->connect = call(function () {
+        $state = new \stdClass;
+        $state->instance = $this;
+
+        return $this->connect = call(static function () use ($state) {
             try {
                 /** @var RespSocket $resp */
-                $resp = yield connect($this->config->withDatabase($this->database), $this->connector);
+                $resp = yield connect($state->instance->config->withDatabase($state->instance->database), $state->instance->connector);
             } catch (\Throwable $connectException) {
-                yield delay(0); // ensure $this->connect is already assigned above in case of immediate failure
+                yield delay(0); // ensure $state->instance->connect is already assigned above in case of immediate failure
 
-                $this->connect = null;
+                $state->instance->connect = null;
 
                 throw $connectException;
             }
 
-            asyncCall(function () use ($resp) {
+            asyncCall(static function () use ($resp, $state) {
+                $instance = $state->instance;
+
                 try {
                     while ([$response] = yield $resp->read()) {
-                        $deferred = \array_shift($this->queue);
-                        if (!$this->queue) {
+                        $deferred = \array_shift($instance->queue);
+                        if (!$instance->queue) {
                             $resp->unreference();
                         }
 
@@ -114,11 +124,11 @@ final class RemoteExecutor implements QueryExecutor
                         }
                     }
 
-                    throw new SocketException('Socket to redis instance (' . $this->config->getConnectUri() . ') closed unexpectedly');
+                    throw new SocketException('Socket to redis instance (' . $instance->config->getConnectUri() . ') closed unexpectedly');
                 } catch (\Throwable $error) {
-                    $queue = $this->queue;
-                    $this->queue = [];
-                    $this->connect = null;
+                    $queue = $instance->queue;
+                    $instance->queue = [];
+                    $instance->connect = null;
 
                     while ($queue) {
                         $deferred = \array_shift($queue);
@@ -126,6 +136,8 @@ final class RemoteExecutor implements QueryExecutor
                     }
                 }
             });
+
+            $state->instance = null; // free circular reference
 
             return $resp;
         });
