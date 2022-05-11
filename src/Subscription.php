@@ -35,7 +35,5 @@ final class Subscription implements \IteratorAggregate
             EventLoop::queue($this->unsubscribe);
             $this->unsubscribe = null;
         }
-
-        $this->iterator->dispose();
     }
 }
