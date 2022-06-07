@@ -22,7 +22,7 @@
     "require": {
         "php": ">=7.1",
         "amphp/amp": "^2.2.1",
-        "amphp/cache": "^1.4",
+        "amphp/cache": "^1.5",
         "amphp/socket": "^1",
         "league/uri-parser": "^1.4",
         "amphp/sync": "^1.1"
